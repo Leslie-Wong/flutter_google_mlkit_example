@@ -10,21 +10,21 @@ import 'package:google_ml_kit/google_ml_kit.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:image/image.dart' as IMG;
+import 'package:byte_util/byte_util.dart';
 
 import '../main.dart';
-import 'overlay_shape.dart';
-import 'model.dart';
 
 enum ScreenMode { liveFeed, gallery }
 
 class CameraView extends StatefulWidget {
+  static final GlobalKey<_CameraViewState> globalKey = GlobalKey();
+  // super(key: globalKey);
   CameraView(
-      {Key? key,
-      required this.title,
+      {required this.title,
       required this.customPaint,
       required this.onImage,
       this.initialDirection = CameraLensDirection.back})
-      : super(key: key);
+      : super(key: globalKey);
 
   final String title;
   final CustomPaint? customPaint;
@@ -79,23 +79,7 @@ class _CameraViewState extends State<CameraView> {
     super.dispose();
   }
 
-  final overlay = GlobalKey();
-
-  double? X_Position = 0.00;
-  double? Y_Position = 0.00;
-
-  void _getPosition() {
-    if (overlay.currentContext != null) {
-      RenderBox? box = overlay.currentContext!.findRenderObject() as RenderBox?;
-      Size size = box!.size;
-      Offset position = box.localToGlobal(Offset.zero);
-
-      setState(() {
-        X_Position = position.dx;
-        Y_Position = position.dy;
-      });
-    }
-  }
+  
 
   @override
   Widget build(BuildContext context) {
@@ -167,7 +151,7 @@ class _CameraViewState extends State<CameraView> {
     // to prevent scaling down, invert the value
     if (scale < 1) scale = 1 / scale;
 
-    _getPosition();
+    // _getPosition();
 
     return Container(
       color: Colors.black,
@@ -183,10 +167,6 @@ class _CameraViewState extends State<CameraView> {
                     )
                   : CameraPreview(_controller!),
             ),
-          ),
-          OverlayShape(
-            CardOverlay.byFormat(OverlayFormat.cardID1),
-            key: overlay,
           ),
           if (widget.customPaint != null) widget.customPaint!,
           // Positioned(
@@ -323,7 +303,7 @@ class _CameraViewState extends State<CameraView> {
     final bytes = allBytes.done().buffer.asUint8List();
 
     final Size imageSize =
-        Size(image.width.toDouble(), image.height.toDouble());
+    Size(image.width.toDouble(), image.height.toDouble());
 
     final camera = cameras[_cameraIndex];
     final imageRotation =
@@ -335,7 +315,7 @@ class _CameraViewState extends State<CameraView> {
             InputImageFormat.nv21;
 
     final planeData = image.planes.map(
-      (Plane plane) {
+          (Plane plane) {
         return InputImagePlaneMetadata(
           bytesPerRow: plane.bytesPerRow,
           height: plane.height,
@@ -352,12 +332,28 @@ class _CameraViewState extends State<CameraView> {
     );
 
     final inputImage =
-        InputImage.fromBytes(bytes: bytes, inputImageData: inputImageData);
+    InputImage.fromBytes(bytes: bytes, inputImageData: inputImageData);
 
     widget.onImage(inputImage);
   }
 
-  Future _processtakePicture(CameraImage image) async {
+
+
+  Future _saveImage(IMG.Image img) async{
+    Directory appDocDir = await getTemporaryDirectory();
+    Directory? externalDirectory = await getExternalStorageDirectory();
+    String appDocPath = appDocDir.path;
+
+    String timestamp() => DateTime.now().millisecondsSinceEpoch.toString();
+    final Directory? extDir = await getExternalStorageDirectory();
+    final String dirPath = '${extDir!.path}/Pictures';
+    final myImgDir = await new Directory(dirPath).create();
+
+    var cv_img = await new File('$dirPath/id_card-${timestamp()}.jpg')
+        .writeAsBytes(IMG.encodePng(img));
+  }
+
+  Future processtakePicture() async {
     
     Directory appDocDir = await getTemporaryDirectory();
     Directory? externalDirectory = await getExternalStorageDirectory();
@@ -414,6 +410,6 @@ class _CameraViewState extends State<CameraView> {
     IMG.Image img = IMG.copyCrop(src, sw, sh, nw, nh);
 
     var cv_img = await new File('$dirPath/id_card-${timestamp()}.jpg')
-        .writeAsBytes(IMG.encodePng(img));
+        .writeAsBytes(IMG.encodePng(src));
   }
 }
