@@ -9,7 +9,7 @@ import 'package:google_ml_kit/google_ml_kit.dart';
 import 'coordinates_translator.dart';
 
 class FaceDetectorPainter extends CustomPainter {
-  FaceDetectorPainter(this.recognizedText, this.faces, this.absoluteImageSize, this.rotation, this._check, this._checkLeftTop, this.hitCorrectCount, this._takePhoto);
+  FaceDetectorPainter(this.recognizedText, this.faces, this.absoluteImageSize, this.rotation, this._check, this._checkLeftTop, this.hitInfo, this._takePhoto);
 
   final Size absoluteImageSize;
   final List<dynamic> faces;
@@ -17,7 +17,7 @@ class FaceDetectorPainter extends CustomPainter {
   final RecognizedText recognizedText;
 
   final InputImageRotation rotation;
-  List<int>  hitCorrectCount;
+  Map<String, dynamic>  hitInfo;
 
   Function _check;
   Function _checkLeftTop;
@@ -47,6 +47,7 @@ class FaceDetectorPainter extends CustomPainter {
       bool check = _check(face.boundingBox.left, face.boundingBox.top, face.boundingBox.right, face.boundingBox.bottom);
       if(check){
         if(face.boundingBox.size.width > 75 && face.boundingBox.size.width < 110){
+          hitInfo["size"] = size;
           hitCheckCount++;
           canvas.drawRect(
             Rect.fromLTRB(
@@ -149,9 +150,21 @@ class FaceDetectorPainter extends CustomPainter {
         );
 
         if(
-          (textBlock.text.contains("HONG KONG") && textBlock.text.contains("CARD") && _checkLeftTop(textBlock.rect.left)) || 
-          ((textBlock.text.contains(RegExp(r"([A-Z][0-9][0-9][0-9][0-9][0-9][0-9]+)([ ]+)([(][A-Z-0-9][)])")) || textBlock.text.contains(RegExp(r"([A-Z][0-9][0-9][0-9][0-9][0-9][0-9]+)([(][A-Z-0-9][)])"))) && textBlock.rect.left > size.width/2)
+          (textBlock.text.contains("HONG KONG") && textBlock.text.contains("CARD") && _checkLeftTop(textBlock.rect.left)) 
         ){
+          hitInfo["left"] = textBlock.rect.left;
+          hitInfo["top"] = textBlock.rect.top;
+          // if(textBlock.text.contains("HONG KONG")){
+          //   hitInfo["top"] = true;
+          // }else{
+          //   hitInfo["top"] = false;
+          // }
+          hitCheckCount++;
+        }
+
+        if(((textBlock.text.contains(RegExp(r"([A-Z][0-9][0-9][0-9][0-9][0-9][0-9]+)([ ]+)([(][A-Z-0-9][)])")) || textBlock.text.contains(RegExp(r"([A-Z][0-9][0-9][0-9][0-9][0-9][0-9]+)([(][A-Z-0-9][)])"))) && textBlock.rect.left > size.width/2)){
+          hitInfo["right"] = textBlock.rect.right;
+          hitInfo["bottom"] = textBlock.rect.bottom;
           hitCheckCount++;
         }
       }
@@ -159,18 +172,18 @@ class FaceDetectorPainter extends CustomPainter {
     }
 
     if(hitCheckCount >= 3){
-      hitCorrectCount[0]++;
+      hitInfo["count"]++;
     }else{
-      hitCorrectCount[0] = 0;
+      hitInfo["count"] = 0;
     }
-    print("hitCheckCount => " + hitCheckCount.toString());
+    // print("hitCheckCount => " + hitCheckCount.toString());
 
-    if(hitCorrectCount[0] > 8){
+    if(hitInfo["count"] > 1){
       _takePhoto();
     }
-    stderr.writeln('print me');
-    developer.log("hitCheckCount => " + hitCheckCount.toString(), name: 'my.other.category');
-    developer.log("hitCorrectCount => " + hitCorrectCount[0].toString(), name: 'my.other.category');
+    // stderr.writeln('print me');
+    // developer.log("hitCheckCount => " + hitCheckCount.toString(), name: 'my.other.category');
+    developer.log("hitCorrectCount => " + hitInfo.toString(), name: 'my.other.category');
     // print("hitCheckCount = hitCorrectCount => " + hitCorrectCount.toString());
   }
 

@@ -12,6 +12,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:image/image.dart' as IMG;
 import 'package:byte_util/byte_util.dart';
 
+import 'dart:developer' as developer;
+
 import '../main.dart';
 
 enum ScreenMode { liveFeed, gallery }
@@ -39,11 +41,14 @@ class _CameraViewState extends State<CameraView> {
   ScreenMode _mode = ScreenMode.liveFeed;
   CameraController? _controller;
   File? _image;
+  CameraImage? camImg;
   ImagePicker? _imagePicker;
   int _cameraIndex = 0;
   double zoomLevel = 0.0, minZoomLevel = 0.0, maxZoomLevel = 0.0;
   bool _allowPicker = true;
   bool _changingCameraLens = false;
+  Size screenSize = Size(0.0, 0.0);
+  var scale;
 
   @override
   void initState() {
@@ -141,16 +146,17 @@ class _CameraViewState extends State<CameraView> {
       return Container();
     }
 
-    final size = MediaQuery.of(context).size;
+    screenSize = MediaQuery.of(context).size;
     // calculate scale depending on screen and camera ratios
     // this is actually size.aspectRatio / (1 / camera.aspectRatio)
     // because camera preview size is received as landscape
     // but we're calculating for portrait orientation
-    var scale = size.aspectRatio * _controller!.value.aspectRatio;
+    developer.log("MediaQuery Size => " + screenSize.toString(), name: 'my.other.category');
+    scale = screenSize.aspectRatio * _controller!.value.aspectRatio;
 
     // to prevent scaling down, invert the value
     if (scale < 1) scale = 1 / scale;
-
+    developer.log("scale => " + scale.toString(), name: 'my.other.category');
     // _getPosition();
 
     return Container(
@@ -269,7 +275,7 @@ class _CameraViewState extends State<CameraView> {
   }
 
   Future _stopLiveFeed() async {
-    await _controller?.stopImageStream();
+    // await _controller?.stopImageStream();
     await _controller?.dispose();
     _controller = null;
   }
@@ -334,6 +340,10 @@ class _CameraViewState extends State<CameraView> {
     final inputImage =
     InputImage.fromBytes(bytes: bytes, inputImageData: inputImageData);
 
+    setState(() {
+      camImg = image;
+    });
+
     widget.onImage(inputImage);
   }
 
@@ -353,63 +363,145 @@ class _CameraViewState extends State<CameraView> {
         .writeAsBytes(IMG.encodePng(img));
   }
 
-  Future processtakePicture() async {
-    
-    Directory appDocDir = await getTemporaryDirectory();
-    Directory? externalDirectory = await getExternalStorageDirectory();
-    String appDocPath = appDocDir.path;
+  Future processtakePicture(Map<String, dynamic> hitInfo) async {
+    IMG.Image? src;
 
-    String timestamp() => DateTime.now().millisecondsSinceEpoch.toString();
-    final Directory? extDir = await getExternalStorageDirectory();
-    final String dirPath = '${extDir!.path}/Pictures';
-    final myImgDir = await new Directory(dirPath).create();
+    if(camImg!.format.group == ImageFormatGroup.yuv420){
+      src = await convertYUV420toImageColor(camImg!);
+    }else{
+      src = await IMG.Image.fromBytes(
+          camImg!.planes[0].bytesPerRow,
+          camImg!.height,
+          camImg!.planes[0].bytes,
+          format: IMG.Format.bgra,
+        );
+    }
+    if(src != null){
+      
+      await _controller?.stopImageStream();
 
-    await _controller?.stopImageStream();
-    XFile file = await _controller!.takePicture();
-    final bytes = await File(file.path).readAsBytes();
-    final IMG.Image src = IMG.decodeJpg(bytes)!;
-    // ImageProperties properties = await FlutterNativeImage.getImageProperties(file.path);
-    // // var y = [properties.height,properties.width].reduce(max);
-    // // var x = [properties.height,properties.width].reduce(min);
-    // final int h = properties.height;
+      Directory appDocDir = await getTemporaryDirectory();
+      Directory? externalDirectory = await getExternalStorageDirectory();
+      String appDocPath = appDocDir.path;
 
-    // final int w = properties.width;
-    // final size = MediaQuery.of(context).size;
-    final int h = src.height; //1280
-    final int w = src.width; //720
+      String timestamp() => DateTime.now().millisecondsSinceEpoch.toString();
+      final Directory? extDir = await getExternalStorageDirectory();
+      final String dirPath = '${extDir!.path}/Pictures';
+      final myImgDir = await new Directory(dirPath).create();
 
-    // var x = min(h, w);
-    // var y = max(h, w);
-    int sw = 0;
-    int nw = 0;
-    int sh = 0;
-    int nh = 0;
+      // await _controller?.stopImageStream();
+      // XFile file = await _controller!.takePicture();
+      // final bytes = await File(file.path).readAsBytes();
+      // final IMG.Image src = IMG.decodeJpg(bytes)!;
+      // ImageProperties properties = await FlutterNativeImage.getImageProperties(file.path);
+      // // var y = [properties.height,properties.width].reduce(max);
+      // // var x = [properties.height,properties.width].reduce(min);
+      // final int h = properties.height;
 
-    sw = (w * 0.13).round();
-    nw = w - sw * 2;
-    nh = (w / 1.59).round();
-    sh = ((h / 2 - nh / 2) + (w * 0.08)).round();
-    nh = ((nh - ((w * 0.08) * 2))).round();
-    // if (scale > 1) {
-    //   // sw = ((w * scale - w) / 2).round();
-    //   // nw = (w / scale).round();
-    //   // sh = (h * scale / 2  - w / 2).round();
-    //   // nh = (nw / 1.55 ).round();
-    //   sw = (((w * scale - w) / 2) + (w * scale * 0.01))
-    //       .round();
-    //   nw = ((w / scale) - (w * scale * 0.05)).round();
-    //   sh = ((h * scale / 2 - w * scale / 2.7)).round();
-    //   nh = (nw - (h * scale * 0.115)).round();
-    // } else {
-    //   sw = (w - w * scale).round();
-    //   nw = (w / scale).round();
-    //   sh = (h * scale / 2 - w / 2).round();
-    //   nh = (nw / 1.59 / scale).round();
-    // }
+      // final int w = properties.width;
+      // final size = MediaQuery.of(context).size;
+      // final int h = src.height; //1280
+      // final int w = src.width; //720
 
-    IMG.Image img = IMG.copyCrop(src, sw, sh, nw, nh);
+      double hScale = screenSize.height / src.height;
+      double sScale = src.height / screenSize.height;
 
-    var cv_img = await new File('$dirPath/id_card-${timestamp()}.jpg')
-        .writeAsBytes(IMG.encodePng(src));
+      developer.log("Image Size => w:" + src.width.toString() + " h:"+ src.height.toString() + " hScale:" + hScale.toString(), name: 'my.other.category');
+
+      
+      final int h = ((hitInfo["bottom"] - hitInfo["top"])).round(); //1280
+      
+      int left = (hitInfo["right"] - h*1.84).round();
+
+      final int w = ((hitInfo["right"] - left)).round();  //720
+      // int sw = (hitInfo["left"] * scale - w * 0.11).round();
+      // int nw = ((hitInfo["right"] * scale + w * 0.1)).round();
+      int sw = ((left)).round();
+      int nw = (w + h*0.16).round();
+      // int sh = (hitInfo["top"] * scale - w * 0.09).round();
+      // int nh = ((hitInfo["bottom"] * scale + w * 0.01)).round();
+      int sh = (hitInfo["top"] - h*0.11).round();
+      int nh = (h + h*0.23).round();
+      // var x = min(h, w);
+      // var y = max(h, w);
+      // int sw = 0;
+      // int nw = 0;
+      // int sh = 0;
+      // int nh = 0;
+
+      // sw = (w * 0.13).round();
+      // nw = w - sw * 2;
+      // nh = (w / 1.59).round();
+      // sh = ((h / 2 - nh / 2)).round();
+      // nh = ((nh - ((w * 0.08) * 2))).round();
+      // if (scale > 1) {
+      //   // sw = ((w * scale - w) / 2).round();
+      //   // nw = (w / scale).round();
+      //   // sh = (h * scale / 2  - w / 2).round();
+      //   // nh = (nw / 1.55 ).round();
+      //   sw = (((w * scale - w) / 2) + (w * scale * 0.01))
+      //       .round();
+      //   nw = ((w / scale) - (w * scale * 0.05)).round();
+      //   sh = ((h * scale / 2 - w * scale / 2.7)).round();
+      //   nh = (nw - (h * scale * 0.115)).round();
+      // } else {
+      //   sw = (w - w * scale).round();
+      //   nw = (w / scale).round();
+      //   sh = (h * scale / 2 - w / 2).round();
+      //   nh = (nw / 1.59 / scale).round();
+      // }
+
+      IMG.Image img = IMG.copyCrop(src, sw, sh, nw, nh);
+
+      var cv_img = await new File('$dirPath/id_card-${timestamp()}.jpg')
+          .writeAsBytes(IMG.encodePng(img));
+    }
+  }
+
+var shift = (0xFF << 24);
+Future<IMG.Image?> convertYUV420toImageColor(CameraImage image) async {
+      try {
+        final int width = image.width;
+        final int height = image.height;
+        final int uvRowStride = image.planes[1].bytesPerRow;
+        final int uvPixelStride = image.planes[1].bytesPerPixel!;
+
+        print("uvRowStride: " + uvRowStride.toString());
+        print("uvPixelStride: " + uvPixelStride.toString());
+
+        // imgLib -> Image package from https://pub.dartlang.org/packages/image
+        // var img = IMG.Image(width, height); // Create Image buffer
+        var img = IMG.Image(height, width);
+
+        // Fill image buffer with plane[0] from YUV420_888
+        for(int x=0; x < width; x++) {
+          for(int y=0; y < height; y++) {
+            final int uvIndex = uvPixelStride * (x/2).floor() + uvRowStride*(y/2).floor();
+            final int index = y * width + x;
+
+            final yp = image.planes[0].bytes[index];
+            final up = image.planes[1].bytes[uvIndex];
+            final vp = image.planes[2].bytes[uvIndex];
+            // Calculate pixel color
+            int r = (yp + vp * 1436 / 1024 - 179).round().clamp(0, 255);
+            int g = (yp - up * 46549 / 131072 + 44 -vp * 93604 / 131072 + 91).round().clamp(0, 255);
+            int b = (yp + up * 1814 / 1024 - 227).round().clamp(0, 255);     
+            // color: 0x FF  FF  FF  FF 
+            //           A   B   G   R
+            // img.data[index] = shift | (b << 16) | (g << 8) | r;
+            if (img.boundsSafe(height-y, x)){ 
+              img.setPixelRgba(height-y, x, r , g ,b ,shift); 
+            } 
+          }
+        }
+
+        // IMG.PngEncoder pngEncoder = new IMG.PngEncoder(level: 0, filter: 0);
+        // List<int> png = pngEncoder.encodeImage(img);
+        // muteYUVProcessing = false;
+        return img;  
+      } catch (e) {
+        print(">>>>>>>>>>>> ERROR:" + e.toString());
+      }
+      return null;
   }
 }

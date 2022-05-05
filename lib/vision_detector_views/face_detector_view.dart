@@ -35,7 +35,7 @@ class _FaceDetectorViewState extends State<FaceDetectorView> {
   CustomPaint? _customPaint;
 
 
-  List<int> hitCorrectCount = [0];
+  Map<String, dynamic> hitInfo = {"count":0};
 
   int img_h = 0; //1280
   int img_w = 0; //720
@@ -61,7 +61,7 @@ class _FaceDetectorViewState extends State<FaceDetectorView> {
   }
 
   void takePhoto(){
-    CameraView.globalKey.currentState!.processtakePicture();
+    CameraView.globalKey.currentState!.processtakePicture(hitInfo);
   }
 
   @override
@@ -111,7 +111,7 @@ class _FaceDetectorViewState extends State<FaceDetectorView> {
           inputImage.inputImageData!.imageRotation,
           _checkInsiteCard,
           _checkLeftTop,
-          hitCorrectCount,
+          hitInfo,
           takePhoto);
       _customPaint = CustomPaint(painter: painter);
     } else {
